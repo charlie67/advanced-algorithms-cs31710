@@ -1,0 +1,18 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/mnt/Documents/advanced-algorithms-cs31710/code/main.c
+stdio.h
+-
+stdlib.h
+-
+math.h
+-
+glpk.h
+-
+
