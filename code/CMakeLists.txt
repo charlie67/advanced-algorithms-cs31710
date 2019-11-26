@@ -5,3 +5,4 @@ set(CMAKE_C_STANDARD 99)
 
 add_executable(code main.c)
 target_link_libraries(code m)
+target_link_libraries(code glpk)
