@@ -34,25 +34,29 @@ int computeSolution(void) {
     double *rowSumArray = malloc(sizeof(double) * size);
     double *columnSumArray = malloc(sizeof(double) * size);
 
-    for (int col = 0; col < size; col++) {
+    int index[5]; /* indices to define constraint coefficients */
+    double row[5]; /* values to define constraint coefficients */
+
+    //loop variables
+    int i;
+    int j;
+
+    for (i = 0; i < size; i++) {
         double columnSum = 0;
-        for (int row = 0; row < size; row++)
-        {
-            columnSum += input[row * size + col];
+        for (j = 0; j < size; j++) {
+            columnSum += input[j * size + i];
         }
-        printf("Sum for col %d = %f\n", col, columnSum);
-        columnSumArray[col] = columnSum;
+        printf("Sum for col %d = %f\n", i, columnSum);
+        columnSumArray[i] = columnSum;
     }
 
-    for (int row = 0; row < size; row++)
-    {
+    for (i = 0; i < size; i++) {
         double rowSum = 0;
-        for (int col = 0; col < size; col++)
-        {
-            rowSum += input[row * size + col];
+        for (j = 0; j < size; j++) {
+            rowSum += input[i * size + j];
         }
-        printf("Sum for row %d = %f\n", row, rowSum);
-        rowSumArray[row] = rowSum;
+        printf("Sum for row %d = %f\n", i, rowSum);
+        rowSumArray[i] = rowSum;
     }
 
     glp_prob *lp; /* the linear programming problem */
@@ -65,8 +69,110 @@ int computeSolution(void) {
     //so that's 9. Then the source and sink are each connected to 3 more so another 6 + 9 = 15 == 3^2 + 6 = 15
     //with a 4x4 as well then you have the first 4 nodes each connected to 4 other nodes so 16 plus 2 lots of 4
     // which is 24
-    int constraints = (size * size) + size + size; // size squared plus 2 lots of size
-    glp_add_rows(lp, constraints);
+    //there is also a constraint per node and node is two lots of the size because there is a node per number of
+    //columns and per number of rows
+    int numberOfEdges = (size * size) + size + size + 1; //plus 1 for the circulation flow edge
+    // size squared plus 4 lots of size plus 2
+    // the 2 is for the source and sink
+    int constraints = (size * size) + size + size + size + size + 2;
+    glp_add_rows(lp, constraints); //set the number of constraints
+    glp_add_cols(lp, numberOfEdges);//set the number of variables there is a variable per edge
+
+    /* set bounds for the variables */
+    for (i = 1; i <= numberOfEdges; i++) {
+        /* counting starts at 1, not 0! */
+        glp_set_col_bnds(lp, i, GLP_LO, 0.0, 0.0); /* set lower bd. to 0 */
+    }
+    //set obejective function of maximise x16 (for the example)
+    //maximise the circulation edge which is the last edge so is numbered with the highest number
+    glp_set_obj_coef(lp, numberOfEdges, 1.0);
+
+    //for loop from 1 till numberofedges - 1 to set the coefficient to 0 for those variable
+    for (i = 1; i < numberOfEdges; i++) {
+//        printf("i is %d\n", i);
+        glp_set_obj_coef(lp, i, 0.0);
+    }
+
+    //set the constraints
+
+    //do the column sums first
+    //double bounded variable
+    for (i = 1; i < (1 + size); i++) {
+//        printf("i is %d\n", i);
+        double lb = myFloor(columnSumArray[i - 1]);
+        double ub = myCeil(columnSumArray[i - 1]);
+//        printf("lb is %f, ub is %f\n", lb, ub);
+        glp_set_row_bnds(lp, i, GLP_DB, lb, ub);
+    }
+
+    int constraintIterator = i;
+    //set the constraints on the inner nodes starting from the top
+    for (i = 0; i < size; i++) {
+        for (j = 0; j < size; j++) {
+//            printf("i,j is %d,%d\n ", j, i);
+//            printf("value is %f\n", input[j * size + i]);
+//            printf("constraintIterator is %d\n", constraintIterator);
+
+            double lb = myFloor(input[j * size + i]);
+            double ub = myCeil(input[j * size + i]);
+//            printf("lb is %f, ub is %f\n", lb, ub);
+            glp_set_row_bnds(lp, constraintIterator, GLP_DB, lb, ub);
+            constraintIterator++;
+        }
+    }
+
+    //set the constraints on the edges going to the sink
+    for (i = 1; i < (1 + size); i++) {
+//        printf("i is %d\n", i);
+//        printf("constraintIterator is %d\n", constraintIterator);
+        double lb = myFloor(rowSumArray[i - 1]);
+        double ub = myCeil(rowSumArray[i - 1]);
+//        printf("lb is %f, ub is %f\n", lb, ub);
+        glp_set_row_bnds(lp, constraintIterator, GLP_DB, lb, ub);
+        constraintIterator++;
+    }
+
+    //now the nodes need constraining
+    //x1 - x4 - x5 - x6 = 0
+    //x2 - x7 - x8 - x9 = 0
+    //x3 - x10 - x11 - x12 =0;
+    //need to set the right hand side to 0
+    int innerIterator = 1 + size;
+    for (i = 1; i <= size; i++) {
+//        printf("constraintIterator is %d\n", constraintIterator);
+        glp_set_row_bnds(lp, constraintIterator, GLP_FX, 0.0, 0.0);
+
+        index[1] = i;
+        row[1] = 1;
+        int n = 2;
+        for (j = innerIterator; j < innerIterator + size; j++) {
+//            printf("j is %d\n", j);
+//            printf("n is %d\n", n);
+            index[n] = j;
+            row[n] = -1;
+            n++;
+        }
+        glp_set_mat_row(lp, constraintIterator, 4, index, row);
+        innerIterator = j;
+        constraintIterator++;
+    }
+
+    //now need to do the next 3
+    //x4 + x7 + x10 - x13 = 0;
+    //x5 + x8 + x11 - x14 = 0;
+    //x6 + x9 + x12 - x15 = 0;
+//    for (i = 0; i < size; i++) {
+//        glp_set_row_bnds(lp, constraintIterator, GLP_FX, 0.0, 0.0);
+//
+//
+//
+//        constraintIterator++;
+//    }
+
+    //x4 + x7 + x10 - x13 = 0;
+    glp_set_row_bnds(lp, constraintIterator, GLP_FX, 0.0, 0.0);
+
+
 
 
     return 0; /* This is not always correct, of course, and needs to be changed. */
