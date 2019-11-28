@@ -30,29 +30,30 @@ void printMatrix(char *title, double *matrix); /* print a matrix */
 int computeSolution(void) {
     //need to find the sums for each row and column
 
-    //calculate the sums of the rows and columns there are size sums for row and size sums for columns
-    double *rowSumArray = malloc(sizeof(int) * size);
-    double *columnSumArray = malloc(sizeof(int) * size);
+    //store the row and column sums here in an array
+    double *rowSumArray = malloc(sizeof(double) * size);
+    double *columnSumArray = malloc(sizeof(double) * size);
 
     for (int col = 0; col < size; col++) {
         double columnSum = 0;
-
-        for (int row = 0; row < size; row++) {
+        for (int row = 0; row < size; row++)
+        {
             columnSum += input[row * size + col];
         }
-        columnSumArray[col] = columnSum;
         printf("Sum for col %d = %f\n", col, columnSum);
+        columnSumArray[col] = columnSum;
     }
 
-    for (int row = 0; row < size; row++) {
+    for (int row = 0; row < size; row++)
+    {
         double rowSum = 0;
-
         for (int col = 0; col < size; col++)
+        {
             rowSum += input[row * size + col];
+        }
         printf("Sum for row %d = %f\n", row, rowSum);
         rowSumArray[row] = rowSum;
     }
-
 
     glp_prob *lp; /* the linear programming problem */
 

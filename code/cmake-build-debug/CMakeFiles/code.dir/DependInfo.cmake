@@ -4,7 +4,7 @@ set(CMAKE_DEPENDS_LANGUAGES
   )
 # The set of files for implicit dependencies of each language:
 set(CMAKE_DEPENDS_CHECK_C
-  "/mnt/Documents/advanced-algorithms-cs31710/code/main.c" "/mnt/Documents/advanced-algorithms-cs31710/code/cmake-build-debug/CMakeFiles/code.dir/main.c.o"
+  "/home/charlie/documents/advanced-algorithms-cs31710/code/main.c" "/home/charlie/documents/advanced-algorithms-cs31710/code/cmake-build-debug/CMakeFiles/code.dir/main.c.o"
   )
 set(CMAKE_C_COMPILER_ID "GNU")
 
