@@ -28,14 +28,19 @@ void printMatrix(char *title, double *matrix); /* print a matrix */
 /* It is essentially empty and not functional. */
 /* Your own implementation needs to go in here. */
 int computeSolution(void) {
-    //need to find the sums for each row and column
+
+    //won't work for a matrix bigger than 3x3 so just fail out here
+    if (size > 3) {
+        return 0;
+    }
 
     //store the row and column sums here in an array
     double *rowSumArray = malloc(sizeof(double) * size);
     double *columnSumArray = malloc(sizeof(double) * size);
 
-    int index[5]; /* indices to define constraint coefficients */
-    double row[5]; /* values to define constraint coefficients */
+    //these are required to hold size + 1 items but because counting starts from 1 need to add an extra value store
+    int index[size + 2]; /* indices to define constraint coefficients */
+    double row[size + 2]; /* values to define constraint coefficients */
 
     //loop variables
     int i;
@@ -78,12 +83,12 @@ int computeSolution(void) {
     glp_add_rows(lp, constraints); //set the number of constraints
     glp_add_cols(lp, numberOfEdges);//set the number of variables there is a variable per edge
 
-    /* set bounds for the variables */
+    //make all the variables unbounded
     for (i = 1; i <= numberOfEdges; i++) {
-        /* counting starts at 1, not 0! */
-        glp_set_col_bnds(lp, i, GLP_LO, 0.0, 0.0); /* set lower bd. to 0 */
+        glp_set_col_bnds(lp, i, GLP_FR, 0.0, 0.0);
     }
-    //set obejective function of maximise x16 (for the example)
+
+    //set objective function of maximise x16
     //maximise the circulation edge which is the last edge so is numbered with the highest number
     glp_set_obj_coef(lp, numberOfEdges, 1.0);
 
@@ -93,19 +98,32 @@ int computeSolution(void) {
         glp_set_obj_coef(lp, i, 0.0);
     }
 
+    //set the row constraints, this is only going to work for 3x3 input matrix
+
+    int constraintIterator = 1;
+
     //set the constraints
 
-    //do the column sums first
+    //do the column sums
     //double bounded variable
     for (i = 1; i < (1 + size); i++) {
 //        printf("i is %d\n", i);
         double lb = myFloor(columnSumArray[i - 1]);
         double ub = myCeil(columnSumArray[i - 1]);
 //        printf("lb is %f, ub is %f\n", lb, ub);
-        glp_set_row_bnds(lp, i, GLP_DB, lb, ub);
+//        printf("constraintIterator is %d\n", constraintIterator);
+        if (lb == ub) {
+            glp_set_row_bnds(lp, constraintIterator, GLP_FX, lb, ub);
+        } else {
+            glp_set_row_bnds(lp, constraintIterator, GLP_DB, lb, ub);
+        }
+        index[1] = constraintIterator;
+        row[1] = 1;
+        glp_set_mat_row(lp, constraintIterator, 1, index, row);
+        constraintIterator++;
     }
 
-    int constraintIterator = i;
+
     //set the constraints on the inner nodes starting from the top
     for (i = 0; i < size; i++) {
         for (j = 0; j < size; j++) {
@@ -116,7 +134,14 @@ int computeSolution(void) {
             double lb = myFloor(input[j * size + i]);
             double ub = myCeil(input[j * size + i]);
 //            printf("lb is %f, ub is %f\n", lb, ub);
-            glp_set_row_bnds(lp, constraintIterator, GLP_DB, lb, ub);
+            if (lb == ub) {
+                glp_set_row_bnds(lp, constraintIterator, GLP_FX, lb, ub);
+            } else {
+                glp_set_row_bnds(lp, constraintIterator, GLP_DB, lb, ub);
+            }
+            index[1] = constraintIterator;
+            row[1] = 1;
+            glp_set_mat_row(lp, constraintIterator, 1, index, row);
             constraintIterator++;
         }
     }
@@ -124,58 +149,215 @@ int computeSolution(void) {
     //set the constraints on the edges going to the sink
     for (i = 1; i < (1 + size); i++) {
 //        printf("i is %d\n", i);
-//        printf("constraintIterator is %d\n", constraintIterator);
+        printf("constraintIterator is %d\n", constraintIterator);
         double lb = myFloor(rowSumArray[i - 1]);
         double ub = myCeil(rowSumArray[i - 1]);
-//        printf("lb is %f, ub is %f\n", lb, ub);
-        glp_set_row_bnds(lp, constraintIterator, GLP_DB, lb, ub);
+        printf("lb is %f, ub is %f\n", lb, ub);
+        if (lb == ub) {
+            glp_set_row_bnds(lp, constraintIterator, GLP_FX, lb, ub);
+        } else {
+            glp_set_row_bnds(lp, constraintIterator, GLP_DB, lb, ub);
+        }
+        index[1] = constraintIterator;
+        row[1] = 1;
+        glp_set_mat_row(lp, constraintIterator, 1, index, row);
         constraintIterator++;
     }
 
+    //this was me attempting to do the node constraints so that they would work for a matrix of any size
     //now the nodes need constraining
     //x1 - x4 - x5 - x6 = 0
     //x2 - x7 - x8 - x9 = 0
     //x3 - x10 - x11 - x12 =0;
     //need to set the right hand side to 0
-    int innerIterator = 1 + size;
-    for (i = 1; i <= size; i++) {
-//        printf("constraintIterator is %d\n", constraintIterator);
-        glp_set_row_bnds(lp, constraintIterator, GLP_FX, 0.0, 0.0);
-
-        index[1] = i;
-        row[1] = 1;
-        int n = 2;
-        for (j = innerIterator; j < innerIterator + size; j++) {
-//            printf("j is %d\n", j);
-//            printf("n is %d\n", n);
-            index[n] = j;
-            row[n] = -1;
-            n++;
-        }
-        glp_set_mat_row(lp, constraintIterator, 4, index, row);
-        innerIterator = j;
-        constraintIterator++;
-    }
-
-    //now need to do the next 3
-    //x4 + x7 + x10 - x13 = 0;
-    //x5 + x8 + x11 - x14 = 0;
-    //x6 + x9 + x12 - x15 = 0;
-//    for (i = 0; i < size; i++) {
+//    int innerIterator = 1 + size;
+//    for (i = 1; i <= size; i++) {
+////        printf("constraintIterator is %d\n", constraintIterator);
 //        glp_set_row_bnds(lp, constraintIterator, GLP_FX, 0.0, 0.0);
 //
-//
-//
+//        index[1] = i;
+//        row[1] = 1;
+//        int n = 2;
+//        for (j = innerIterator; j < innerIterator + size; j++) {
+////            printf("j is %d\n", j);
+////            printf("n is %d\n", n);
+//            index[n] = j;
+//            row[n] = -1;
+//            n++;
+//        }
+//        glp_set_mat_row(lp, constraintIterator, 4, index, row);
+//        innerIterator = j;
 //        constraintIterator++;
 //    }
 
-    //x4 + x7 + x10 - x13 = 0;
+//x1 - x4 - x5 - x6 = 0
     glp_set_row_bnds(lp, constraintIterator, GLP_FX, 0.0, 0.0);
+    //x1
+    index[1] = 1;
+    row[1] = 1;
+    //x4
+    index[2] = 4;
+    row[2] = -1;
+    //x5
+    index[3] = 5;
+    row[3] = -1;
+    //-x6
+    index[4] = 6;
+    row[4] = -1;
+    glp_set_mat_row(lp, constraintIterator, 4, index, row);
+    constraintIterator++;
+
+    //x2 - x7 - x8 - x9 = 0
+    glp_set_row_bnds(lp, constraintIterator, GLP_FX, 0.0, 0.0);
+    //x2
+    index[1] = 2;
+    row[1] = 1;
+    //-x7
+    index[2] = 7;
+    row[2] = -1;
+    //-x8
+    index[3] = 8;
+    row[3] = -1;
+    //-x9
+    index[4] = 9;
+    row[4] = -1;
+    glp_set_mat_row(lp, constraintIterator, 4, index, row);
+    constraintIterator++;
+
+    //x3 - x10 - x11 - x12 =0;
+    glp_set_row_bnds(lp, constraintIterator, GLP_FX, 0.0, 0.0);
+    //x3
+    index[1] = 3;
+    row[1] = 1;
+    //-x10
+    index[2] = 10;
+    row[2] = -1;
+    //-x11
+    index[3] = 11;
+    row[3] = -1;
+    //-x12
+    index[4] = 12;
+    row[4] = -1;
+    glp_set_mat_row(lp, constraintIterator, 4, index, row);
+    constraintIterator++;
 
 
+    //set constraint x4 + x7 + x10 - x13 = 0;
+    glp_set_row_bnds(lp, constraintIterator, GLP_FX, 0.0, 0.0);
+    //x4
+    index[1] = 4;
+    row[1] = 1;
+    //x7
+    index[2] = 7;
+    row[2] = 1;
+    //x10
+    index[3] = 10;
+    row[3] = 1;
+    //-x13
+    index[4] = 13;
+    row[4] = -1;
+    glp_set_mat_row(lp, constraintIterator, 4, index, row);
+    constraintIterator++;
 
+    //x5 + x8 + x11 - x14 = 0;
+    glp_set_row_bnds(lp, constraintIterator, GLP_FX, 0.0, 0.0);
+    //x5
+    index[1] = 5;
+    row[1] = 1;
+    //x8
+    index[2] = 8;
+    row[2] = 1;
+    //x11
+    index[3] = 11;
+    row[3] = 1;
+    //-x14
+    index[4] = 14;
+    row[4] = -1;
+    glp_set_mat_row(lp, constraintIterator, 4, index, row);
+    constraintIterator++;
 
-    return 0; /* This is not always correct, of course, and needs to be changed. */
+    //x6 + x9 + x12 - x15 = 0;
+    glp_set_row_bnds(lp, constraintIterator, GLP_FX, 0.0, 0.0);
+    //x6
+    index[1] = 6;
+    row[1] = 1;
+    //x9
+    index[2] = 9;
+    row[2] = 1;
+    //x12
+    index[3] = 12;
+    row[3] = 1;
+    //-x15
+    index[4] = 15;
+    row[4] = -1;
+    glp_set_mat_row(lp, constraintIterator, 4, index, row);
+    constraintIterator++;
+
+    //X13 + X14 + X15 - X16 = 0
+    glp_set_row_bnds(lp, constraintIterator, GLP_FX, 0.0, 0.0);
+    //x13
+    index[1] = 13;
+    row[1] = 1;
+    //x14
+    index[2] = 14;
+    row[2] = 1;
+    //x15
+    index[3] = 15;
+    row[3] = 1;
+    //-x16
+    index[4] = 16;
+    row[4] = -1;
+    glp_set_mat_row(lp, constraintIterator, 4, index, row);
+    constraintIterator++;
+
+    //X16 - X1 - X2 - X3 = 0
+    glp_set_row_bnds(lp, constraintIterator, GLP_FX, 0.0, 0.0);
+    //x16
+    index[1] = 16;
+    row[1] = 1;
+    //-x1
+    index[2] = 1;
+    row[2] = -1;
+    //-x2
+    index[3] = 2;
+    row[3] = -1;
+    //-x3
+    index[4] = 3;
+    row[4] = -1;
+    glp_set_mat_row(lp, constraintIterator, 4, index, row);
+
+    /* switch off debug output from GLPK */
+//    glp_term_out(0);
+
+    //write out the model to a text file this is really useful to debug the model
+    glp_write_lp(lp, NULL, "model");
+    //solve
+    glp_simplex(lp, NULL);
+
+    //this is the overall sum of the matrix / the flow through the network
+    printf("objective value %f\n", glp_get_obj_val(lp));
+
+    //the first size amount are the column sums the next size is the first column, next size amount are next columns etc
+    //then final size are the row sums
+    //ignore the first and last 3 because we don't care about the row/column sums
+    //this gives the results per column because my constraints were defined per column
+    for (i = 4; i < numberOfEdges - 3; i++) {
+        double value = glp_get_col_prim(lp, i);
+        printf("%f\n", value);
+    }
+
+    //this is also only going to work for a 3x3 input matrix
+    solution[0] = glp_get_col_prim(lp, 4);
+    solution[3] = glp_get_col_prim(lp, 5);
+    solution[6] = glp_get_col_prim(lp, 6);
+    solution[1] = glp_get_col_prim(lp, 7);
+    solution[4] = glp_get_col_prim(lp, 8);
+    solution[7] = glp_get_col_prim(lp, 9);
+    solution[2] = glp_get_col_prim(lp, 10);
+    solution[5] = glp_get_col_prim(lp, 11);
+    solution[8] = glp_get_col_prim(lp, 12);
+
+    return 1;
 }
 
 /* YOU SHOULD NOT CHANGE ANYTHING BELOW THIS LINE! */
